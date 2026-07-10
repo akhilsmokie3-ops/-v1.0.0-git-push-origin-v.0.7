@@ -1,0 +1,283 @@
+import { useState, useEffect, useRef } from "react";
+
+const COMMANDS = {
+  "pip install alembic sqlalchemy": {
+    delay: 80,
+    lines: [
+      { text: "Collecting alembic", color: "text-zinc-300" },
+      { text: "  Downloading alembic-1.13.1-py3-none-any.whl (233 kB)", color: "text-zinc-400" },
+      { text: "     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 233/233 kB 2.1 MB/s", color: "text-emerald-400" },
+      { text: "Collecting sqlalchemy>=1.3.0", color: "text-zinc-300" },
+      { text: "  Downloading SQLAlchemy-2.0.25-cp311-cp311-linux_x86_64.whl (3.0 MB)", color: "text-zinc-400" },
+      { text: "     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.0/3.0 MB 4.5 MB/s", color: "text-emerald-400" },
+      { text: "Collecting Mako", color: "text-zinc-300" },
+      { text: "  Downloading Mako-1.3.0-py3-none-any.whl (78 kB)", color: "text-zinc-400" },
+      { text: "Installing collected packages: Mako, sqlalchemy, alembic", color: "text-zinc-300" },
+      { text: "Successfully installed alembic-1.13.1 mako-1.3.0 sqlalchemy-2.0.25", color: "text-emerald-300", bold: true },
+    ],
+  },
+  "alembic upgrade head": {
+    delay: 120,
+    lines: [
+      { text: "INFO  [alembic.runtime.migration] Context impl SQLiteImpl.", color: "text-sky-400" },
+      { text: "INFO  [alembic.runtime.migration] Will assume non-transactional DDL.", color: "text-sky-400" },
+      { text: "INFO  [alembic.runtime.migration] Running upgrade  -> 001, initial users table", color: "text-emerald-300" },
+      { text: "INFO  [alembic.runtime.migration] Running upgrade 001 -> 002, add role column to users", color: "text-emerald-300" },
+    ],
+  },
+  "alembic current": {
+    delay: 100,
+    lines: [
+      { text: "INFO  [alembic.runtime.migration] Context impl SQLiteImpl.", color: "text-sky-400" },
+      { text: "INFO  [alembic.runtime.migration] Will assume non-transactional DDL.", color: "text-sky-400" },
+      { text: "002 (head)", color: "text-yellow-300", bold: true },
+    ],
+  },
+  "alembic history": {
+    delay: 90,
+    lines: [
+      { text: "002 -> (head), add role column to users", color: "text-yellow-300" },
+      { text: "001 -> 002, initial users table", color: "text-zinc-300" },
+      { text: "<base> -> 001, initial users table", color: "text-zinc-500" },
+    ],
+  },
+  "alembic downgrade -1": {
+    delay: 110,
+    lines: [
+      { text: "INFO  [alembic.runtime.migration] Context impl SQLiteImpl.", color: "text-sky-400" },
+      { text: "INFO  [alembic.runtime.migration] Will assume non-transactional DDL.", color: "text-sky-400" },
+      { text: "INFO  [alembic.runtime.migration] Running downgrade 002 -> 001, add role column to users", color: "text-orange-400" },
+    ],
+  },
+  'alembic revision --autogenerate -m "add projects table"': {
+    delay: 130,
+    lines: [
+      { text: "INFO  [alembic.autogenerate.compare] Detected added table 'projects'", color: "text-sky-400" },
+      { text: "  Generating /metacommander/migrations/versions/003_add_projects_table.py ...", color: "text-zinc-300" },
+      { text: "  done", color: "text-emerald-300", bold: true },
+    ],
+  },
+  help: {
+    delay: 30,
+    lines: [
+      { text: "Available commands:", color: "text-yellow-300", bold: true },
+      { text: "  pip install alembic sqlalchemy          Install dependencies", color: "text-zinc-300" },
+      { text: "  alembic upgrade head                    Apply all migrations", color: "text-zinc-300" },
+      { text: "  alembic current                         Show current revision", color: "text-zinc-300" },
+      { text: "  alembic history                         Show migration history", color: "text-zinc-300" },
+      { text: "  alembic downgrade -1                    Rollback last migration", color: "text-zinc-300" },
+      { text: '  alembic revision --autogenerate -m "…"  Auto-generate migration', color: "text-zinc-300" },
+      { text: "  clear                                   Clear terminal", color: "text-zinc-300" },
+    ],
+  },
+  clear: { delay: 0, lines: [], clear: true },
+};
+
+const QUICK_CMDS = [
+  "pip install alembic sqlalchemy",
+  "alembic upgrade head",
+  "alembic current",
+  "alembic history",
+  "alembic downgrade -1",
+  'alembic revision --autogenerate -m "add projects table"',
+];
+
+const PROMPT = (
+  <span>
+    <span className="text-emerald-400 font-bold">(venv)</span>
+    <span className="text-sky-400"> root</span>
+    <span className="text-zinc-400">@</span>
+    <span className="text-purple-400">metacommander</span>
+    <span className="text-zinc-400">:</span>
+    <span className="text-yellow-300">~/commander</span>
+    <span className="text-zinc-300">$ </span>
+  </span>
+);
+
+export default function Terminal() {
+  const [history, setHistory] = useState([
+    {
+      type: "banner",
+      lines: [
+        "╔══════════════════════════════════════════════════════╗",
+        "║          MetaCommander — Migration Terminal          ║",
+        "║         Alembic + SQLite  |  type 'help' to start   ║",
+        "╚══════════════════════════════════════════════════════╝",
+      ],
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [running, setRunning] = useState(false);
+  const [cmdHistory, setCmdHistory] = useState([]);
+  const [histIdx, setHistIdx] = useState(-1);
+  const bottomRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [history]);
+
+  const runCommand = (cmd) => {
+    const trimmed = cmd.trim();
+    if (!trimmed) return;
+
+    setCmdHistory((prev) => [trimmed, ...prev]);
+    setHistIdx(-1);
+
+    const match = COMMANDS[trimmed];
+
+    if (!match) {
+      setHistory((prev) => [
+        ...prev,
+        { type: "input", text: trimmed },
+        {
+          type: "output",
+          lines: [{ text: `bash: ${trimmed}: command not found`, color: "text-red-400" }],
+        },
+      ]);
+      return;
+    }
+
+    if (match.clear) {
+      setHistory([]);
+      return;
+    }
+
+    setRunning(true);
+    setHistory((prev) => [...prev, { type: "input", text: trimmed }]);
+
+    let i = 0;
+    const addLine = () => {
+      if (i < match.lines.length) {
+        const line = match.lines[i];
+        setHistory((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.type === "streaming") {
+            return [...prev.slice(0, -1), { ...last, lines: [...last.lines, line] }];
+          }
+          return [...prev, { type: "streaming", lines: [line] }];
+        });
+        i++;
+        setTimeout(addLine, match.delay + Math.random() * 40);
+      } else {
+        setRunning(false);
+      }
+    };
+    setTimeout(addLine, 80);
+  };
+
+  const handleKey = (e) => {
+    if (e.key === "Enter") {
+      runCommand(input);
+      setInput("");
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHistIdx((prev) => {
+        const next = Math.min(prev + 1, cmdHistory.length - 1);
+        setInput(cmdHistory[next] || "");
+        return next;
+      });
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHistIdx((prev) => {
+        const next = Math.max(prev - 1, -1);
+        setInput(next === -1 ? "" : cmdHistory[next] || "");
+        return next;
+      });
+    }
+  };
+
+  return (
+    <div
+      className="min-h-screen bg-zinc-950 flex flex-col items-center justify-start p-4 font-mono"
+      onClick={() => inputRef.current?.focus()}
+    >
+      {/* Window chrome */}
+      <div className="w-full max-w-3xl rounded-xl overflow-hidden shadow-2xl border border-zinc-800">
+        {/* Title bar */}
+        <div className="bg-zinc-900 px-4 py-3 flex items-center gap-2 border-b border-zinc-800">
+          <div className="w-3 h-3 rounded-full bg-red-500 opacity-80" />
+          <div className="w-3 h-3 rounded-full bg-yellow-400 opacity-80" />
+          <div className="w-3 h-3 rounded-full bg-emerald-400 opacity-80" />
+          <span className="ml-3 text-xs text-zinc-500 tracking-widest uppercase">
+            metacommander — bash
+          </span>
+        </div>
+
+        {/* Terminal body */}
+        <div className="bg-zinc-950 p-5 min-h-80 max-h-[60vh] overflow-y-auto text-sm leading-relaxed">
+          {history.map((entry, i) => (
+            <div key={i} className="mb-1">
+              {entry.type === "banner" && (
+                <div className="mb-3">
+                  {entry.lines.map((l, j) => (
+                    <div key={j} className="text-purple-400 text-xs">{l}</div>
+                  ))}
+                </div>
+              )}
+              {entry.type === "input" && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {PROMPT}
+                  <span className="text-zinc-100">{entry.text}</span>
+                </div>
+              )}
+              {(entry.type === "output" || entry.type === "streaming") &&
+                entry.lines.map((line, j) => (
+                  <div
+                    key={j}
+                    className={`${line.color} ${line.bold ? "font-bold" : ""} pl-0`}
+                  >
+                    {line.text}
+                  </div>
+                ))}
+            </div>
+          ))}
+
+          {/* Active input line */}
+          <div className="flex items-center mt-2">
+            {PROMPT}
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKey}
+              disabled={running}
+              className="bg-transparent outline-none text-zinc-100 flex-1 caret-emerald-400"
+              autoFocus
+              spellCheck={false}
+            />
+            {running && (
+              <span className="text-emerald-400 animate-pulse ml-1">▊</span>
+            )}
+          </div>
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      {/* Quick command buttons */}
+      <div className="w-full max-w-3xl mt-4">
+        <p className="text-xs text-zinc-600 mb-2 uppercase tracking-widest">Quick commands</p>
+        <div className="flex flex-wrap gap-2">
+          {QUICK_CMDS.map((cmd) => (
+            <button
+              key={cmd}
+              onClick={() => {
+                if (!running) {
+                  runCommand(cmd);
+                }
+              }}
+              disabled={running}
+              className="text-xs px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-500 hover:text-emerald-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {cmd.length > 38 ? cmd.slice(0, 36) + "…" : cmd}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <p className="mt-4 text-xs text-zinc-700">
+        ↑↓ arrow keys for history · type 'help' for all commands · click quick buttons to run
+      </p>
+    </div>
+  );
+}

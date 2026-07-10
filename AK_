@@ -1,0 +1,115 @@
+TEALsim – Falling Coil (GitHub Pages)
+
+A modern HTTPS-hosted version of the TEALsim Falling Coil Java Web Start application.
+
+Overview
+
+This repository hosts the resources required to launch the Falling Coil electromagnetic simulation using OpenWebStart over HTTPS.
+
+The simulation is part of the TEAL (Technology Enabled Active Learning) physics project and demonstrates electromagnetic induction using a falling conducting coil.
+
+Features
+
+- HTTPS hosting via GitHub Pages
+- OpenWebStart compatible
+- Offline-capable JNLP
+- Java 3D support
+- Easy deployment and maintenance
+
+Repository Structure
+
+tealsim-web/
+├── fallingcoil.jnlp
+├── lib/
+│   ├── TEALsim-core.jar
+│   └── TEALsim-simulations.jar
+├── java3d/
+│   └── java3d.jnlp
+├── LICENSE
+└── README.md
+
+Requirements
+
+- Java 8 or later (recommended)
+- OpenWebStart
+- Java3D runtime (if required by your TEALsim version)
+
+Installation
+
+1. Clone the repository.
+
+git clone https://github.com/akhilsmokie3-ops/tealsim-web.git
+
+2. Copy all required TEALsim libraries into the "lib" folder.
+
+3. Verify the Java3D files are present.
+
+4. Update the "codebase" attribute inside "fallingcoil.jnlp" to your GitHub Pages URL.
+
+Example:
+
+codebase="https://akhilsmokie3-ops.github.io/tealsim-web"
+
+5. Commit and push your changes.
+
+GitHub Pages
+
+Enable GitHub Pages:
+
+- Repository → Settings
+- Pages
+- Source → Deploy from branch
+- Branch → main
+- Folder → / (root)
+
+After deployment your application will be available from:
+
+https://akhilsmokie3-ops.github.io/tealsim-web/
+
+Launch
+
+Open
+
+fallingcoil.jnlp
+
+using OpenWebStart.
+
+The launcher starts:
+
+teal.app.SimPlayerApp
+
+and loads
+
+tealsim.physics.em.FallingCoil
+
+Updating
+
+Replace the JAR files inside "lib/" whenever a newer TEALsim version is available.
+
+Commit and push:
+
+git add .
+git commit -m "Update TEALsim libraries"
+git push origin main
+
+Troubleshooting
+
+Missing JAR
+
+Verify every file referenced by the JNLP exists.
+
+Java3D Errors
+
+Install the correct Java3D runtime.
+
+Security Warnings
+
+Ensure all JAR files are properly signed if required by your Java/OpenWebStart configuration.
+
+License
+
+TEALsim and related components are subject to their respective licenses. This repository contains only deployment configuration. Include third-party software only if its license permits redistribution.
+
+Author
+
+GitHub: akhilsmokie3-ops
